@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 
 def create_qr_code(data):
     binary_data = ''
+    data_type = format(4, '04b')
+    char_length = format(len(binary_data), '08b')
 
     # Size of the QR-Code 
     grid_size = 21
@@ -53,6 +55,24 @@ def create_qr_code(data):
         matrix[i][5] = 1
 
     # Alignment Pattern: (only necessary with version 2 and above)
+
+    # Format Strips: Contain rules for how to scan the code
+    # For now, fill them with 2s
+
+    # Top-Left Format Strip
+    for i in range(9):
+        for j in range(9):
+            if i == 8 or j == 8:
+                if matrix[i][j] != 1:
+                    matrix[i][j] = 2
+
+    # Top-Right Format Strip
+    for i in range(8):
+        matrix[8][grid_size-i-1] = 2
+
+    for i in range(7):
+        matrix[grid_size-i-1][8] = 2
+    matrix[grid_size-8][8] = 1
 
     print(matrix)
 
