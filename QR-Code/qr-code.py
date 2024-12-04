@@ -3,17 +3,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def create_qr_code(data):
-    binary_data = ''
-    data_type = format(4, '04b')
-    char_length = format(len(binary_data), '08b')
-
     # Size of the QR-Code 
     grid_size = 21
     matrix = np.zeros((grid_size, grid_size), dtype=int)
 
     # Binary representation of data
+    binary_data = ''
     for char in data:
         binary_data += '{0:08b}'.format(ord(char))
+
+    data_type = str(format(4, '04b'))
+    char_length = str(format(len(data), '08b'))
 
     # Finder Pattern
     # No matter the size of the grid_size, always 7x7
@@ -70,11 +70,32 @@ def create_qr_code(data):
     for i in range(8):
         matrix[8][grid_size-i-1] = 2
 
+    # Bottom-Left Format Strip
     for i in range(7):
         matrix[grid_size-i-1][8] = 2
+    
+    # 1 special pixel (no specific reason) is 1 in the Format Strip
     matrix[grid_size-8][8] = 1
+
+    # Start to encode the data (Zig-zag pattern) starting bottom right
+    # Type of data
+    # First 4: 0001 (Numeric), 0010 (Alphanumeric), 0100 (Binary), 1000 (Japanese Kanji)
+    index = 0
+    for i in range(2):
+        for j in range(2):
+            matrix[grid_size-i-1][grid_size-j-1] = data_type[index]
+            index += 1
+
+    # Number of characters in the message
+    index = 0
+    for i in range(2, 6):
+        for j in range(2):
+            matrix[grid_size-i-1][grid_size-j-1] = char_length[index]
+            index += 1
+
+    
 
     print(matrix)
 
-data = "Test"
+data = "www.twitch.com"
 create_qr_code(data)
