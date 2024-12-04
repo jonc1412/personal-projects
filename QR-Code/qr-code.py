@@ -48,9 +48,11 @@ def create_qr_code(data):
     # Alternating black and white cells, starting with black
     # Horizontal Pattern: Row = 6 and Columns = 8 to (grid_size-9)
     # Vertical Pattern: Column = 6 and Rows = 8 to (grid_size-9)
-    for i in range(7, grid_size-9, 2):
+    for i in range(8, grid_size-8, 2):
         matrix[5][i] = 1
         matrix[i][5] = 1
+
+    # Alignment Pattern: (only necessary with version 2 and above)
 
     print(matrix)
 
