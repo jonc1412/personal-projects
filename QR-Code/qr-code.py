@@ -6,6 +6,7 @@ def create_qr_code(data):
     # Size of the QR-Code 
     grid_size = 21
     matrix = np.zeros((grid_size, grid_size), dtype=int)
+    filled_matrix = np.zeros((grid_size, grid_size), dtype=int)
 
     # Binary representation of data
     binary_data = ''
@@ -93,9 +94,33 @@ def create_qr_code(data):
             matrix[grid_size-i-1][grid_size-j-1] = char_length[index]
             index += 1
 
-    
-
-    print(matrix)
+    # Arranging bytes on the grid
+    # Follows a zig-zag pattern that snakes itself to the top right
+    m = np.zeros((grid_size, grid_size), dtype=int)
+    rows, cols = grid_size, grid_size
+    counter = 0
+    row = rows - 1
+    for col in range(cols - 1, -1, -2):
+        if row == grid_size - 1:
+            while row >= 0:
+                if counter < len(binary_data):
+                    m[row][col] = binary_data[counter]
+                    counter += 1
+                if counter < len(binary_data):
+                    m[row][col-1] = binary_data[counter]
+                    counter += 1    
+                row -= 1
+            row += 1
+        else:
+            while row < grid_size:
+                if counter < len(binary_data):
+                    m[row][col] = binary_data[counter]
+                    counter += 1
+                if counter < len(binary_data):
+                    m[row][col-1] = binary_data[counter]
+                    counter += 1    
+                row += 1
+            row -= 1
 
 data = "www.twitch.com"
 create_qr_code(data)
