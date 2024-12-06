@@ -64,6 +64,8 @@ def create_qr_code(data):
     for i in range(8, grid_size-8, 2):
         matrix[6][i] = 1
         matrix[i][6] = 1
+    
+    for i in range(8, grid_size-8):
         check_matrix[6][i] = 1
         check_matrix[i][6] = 1
 
@@ -93,24 +95,6 @@ def create_qr_code(data):
     # 1 special pixel (no specific reason) is 1 in the Format Strip
     matrix[grid_size-8][8] = 1
     check_matrix[grid_size-8][8] = 1
-
-    # Start to encode the data (Zig-zag pattern) starting bottom right
-    # Type of data
-    # First 4: 0001 (Numeric), 0010 (Alphanumeric), 0100 (Binary), 1000 (Japanese Kanji)
-    index = 0
-    for i in range(2):
-        for j in range(2):
-            matrix[grid_size-i-1][grid_size-j-1] = data_type[index]
-            check_matrix[grid_size-i-1][grid_size-j-1] = 1
-            index += 1
-
-    # Number of characters in the message
-    index = 0
-    for i in range(2, 6):
-        for j in range(2):
-            matrix[grid_size-i-1][grid_size-j-1] = char_length[index]
-            check_matrix[grid_size-i-1][grid_size-j-1] = 1
-            index += 1
     
     # Error correction 
     while len(total_data) % 8 != 0:
@@ -122,52 +106,55 @@ def create_qr_code(data):
     error_correction_binary = ''.join(f'{byte:08b}' for byte in error_correction_bytes)
     full_binary_data = total_data + error_correction_binary
 
-    left_over_data = '1110110000010001'
+    leftover_data = '1110110000010001'
 
     # Arranging bytes on the grid
     # Follows a zig-zag pattern that snakes itself to the top right
     rows, cols = grid_size, grid_size
     counter = 0
-    left_over_counter = 0
+    leftover_counter = 0
     row = rows - 1
+    
     for col in range(cols - 1, -1, -2):
         if row == grid_size - 1:
             while row >= 0:
-                if check_matrix[row][col] != 1:
-                    if counter < len(full_binary_data):
-                        matrix[row][col] = int(full_binary_data[counter])
-                        counter += 1
-                    else:
-                        matrix[row][col] = int(left_over_data[left_over_counter % 16])
-                        left_over_counter += 1
-                if check_matrix[row][col-1] != 1:
-                    if counter < len(full_binary_data):
+                if counter < len(full_binary_data) and check_matrix[row][col] != 1:
+                    matrix[row][col] = int(full_binary_data[counter])
+                    counter += 1
+                elif counter >= len(full_binary_data) and check_matrix[row][col] != 1:
+                    matrix[row][col] = int(leftover_data[leftover_counter%16])
+                    check_matrix[row][col] = 1
+                    leftover_counter += 1
+                if col - 1 >= 0:
+                    if counter < len(full_binary_data) and check_matrix[row][col-1] != 1:
                         matrix[row][col-1] = int(full_binary_data[counter])
-                        counter += 1   
-                    else:
-                        matrix[row][col-1] = int(left_over_data[left_over_counter % 16]) 
-                        left_over_counter += 1
+                        check_matrix[row][col-1] = 1
+                        counter += 1
+                    elif counter >= len(full_binary_data) and check_matrix[row][col-1] != 1:
+                        matrix[row][col-1] = int(leftover_data[leftover_counter%16])
+                        leftover_counter += 1
                 row -= 1
             row += 1
         else:
             while row < grid_size:
-                if check_matrix[row][col] != 1:
-                    if counter < len(full_binary_data):
-                        matrix[row][col] = int(full_binary_data[counter])
-                        counter += 1
-                    else:
-                        matrix[row][col] = int(left_over_data[left_over_counter % 16])
-                        left_over_counter += 1
-                if check_matrix[row][col-1] != 1:
-                    if counter < len(full_binary_data):
-                        matrix[row][col-1] = int(full_binary_data[counter])
-                        counter += 1   
-                    else:
-                        matrix[row][col-1] = int(left_over_data[left_over_counter % 16]) 
-                        left_over_counter += 1
+                if counter < len(full_binary_data) and check_matrix[row][col] != 1:
+                    matrix[row][col] = int(full_binary_data[counter])
+                    counter += 1
+                elif counter >= len(full_binary_data) and check_matrix[row][col] != 1:
+                    matrix[row][col] = int(leftover_data[leftover_counter%16])
+                    check_matrix[row][col] = 1
+                    leftover_counter += 1
+                    
+                if counter < len(full_binary_data) and check_matrix[row][col-1] != 1:
+                    matrix[row][col-1] = int(full_binary_data[counter])
+                    counter += 1
+                elif counter >= len(full_binary_data) and check_matrix[row][col-1] != 1:
+                    matrix[row][col-1] = int(leftover_data[leftover_counter%16])
+                    check_matrix[row][col-1] = 1
+                    leftover_counter += 1
                 row += 1
             row -= 1
-        
+    
     # Format Strip (Error Correction)
     # Convert binary strings to integers for polynomial operations
     def compute_bch(data, generator):
@@ -194,14 +181,12 @@ def create_qr_code(data):
     # Combine to get the full 15-bit format string
     format_string = full_error + remainder
 
-    # Top-Left Horizontal Format Strip
     for i in range(7):
         if i < 6:
             matrix[8][i] = format_string[i]
         else:
             matrix[8][i+1] = format_string[i]
         matrix[grid_size-i-1][8] = format_string[i]
-
     
     for i in range(8):
         if i < 6:
@@ -210,6 +195,17 @@ def create_qr_code(data):
             matrix[i+1][8] = format_string[i+7]
         matrix[8][grid_size-i-1] = format_string[i+7]
 
+    for row in range(rows):
+        for col in range(cols):
+            if check_matrix[row][col] != 1:
+                if (row + col) % 2 == 0:
+                    matrix[row][col] ^= 1
+    
+    print(matrix)
+    
+    plt.imshow(matrix, cmap="binary", interpolation="nearest")
+    plt.axis("off")
+    plt.show()
 
 data = "www.twitch.com"
 create_qr_code(data)
