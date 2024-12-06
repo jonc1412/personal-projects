@@ -1,6 +1,7 @@
 # Create a QR-code using matplotlib
 import numpy as np
 import matplotlib.pyplot as plt
+import reedsolo
 
 def create_qr_code(data):
     # Size of the QR-Code 
@@ -12,9 +13,12 @@ def create_qr_code(data):
     binary_data = ''
     for char in data:
         binary_data += '{0:08b}'.format(ord(char))
+    binary_data += '0000'
 
     data_type = str(format(4, '04b'))
     char_length = str(format(len(data), '08b'))
+
+    total_data = data_type + char_length + binary_data
 
     # Finder Pattern
     # No matter the size of the grid_size, always 7x7
@@ -107,36 +111,105 @@ def create_qr_code(data):
             matrix[grid_size-i-1][grid_size-j-1] = char_length[index]
             check_matrix[grid_size-i-1][grid_size-j-1] = 1
             index += 1
+    
+    # Error correction 
+    while len(total_data) % 8 != 0:
+        total_data += '0'
+
+    rs = reedsolo.RSCodec(7)
+    data_bytes = int(total_data, 2).to_bytes(len(total_data))
+    error_correction_bytes = rs.encode(data_bytes)[-7:]
+    error_correction_binary = ''.join(f'{byte:08b}' for byte in error_correction_bytes)
+    full_binary_data = total_data + error_correction_binary
+
+    left_over_data = '1110110000010001'
 
     # Arranging bytes on the grid
     # Follows a zig-zag pattern that snakes itself to the top right
-    m = np.zeros((grid_size, grid_size), dtype=int)
     rows, cols = grid_size, grid_size
     counter = 0
+    left_over_counter = 0
     row = rows - 1
     for col in range(cols - 1, -1, -2):
         if row == grid_size - 1:
             while row >= 0:
-                if counter < len(binary_data) and check_matrix[row][col] != 1:
-                    matrix[row][col] = binary_data[counter]
-                    counter += 1
-                if counter < len(binary_data) and check_matrix[row][col] != 1:
-                    matrix[row][col-1] = binary_data[counter]
-                    counter += 1    
+                if check_matrix[row][col] != 1:
+                    if counter < len(full_binary_data):
+                        matrix[row][col] = int(full_binary_data[counter])
+                        counter += 1
+                    else:
+                        matrix[row][col] = int(left_over_data[left_over_counter % 16])
+                        left_over_counter += 1
+                if check_matrix[row][col-1] != 1:
+                    if counter < len(full_binary_data):
+                        matrix[row][col-1] = int(full_binary_data[counter])
+                        counter += 1   
+                    else:
+                        matrix[row][col-1] = int(left_over_data[left_over_counter % 16]) 
+                        left_over_counter += 1
                 row -= 1
             row += 1
         else:
             while row < grid_size:
-                if counter < len(binary_data) and check_matrix[row][col] != 1:
-                    matrix[row][col] = binary_data[counter]
-                    counter += 1
-                if counter < len(binary_data) and check_matrix[row][col] != 1:
-                    matrix[row][col-1] = binary_data[counter]
-                    counter += 1    
+                if check_matrix[row][col] != 1:
+                    if counter < len(full_binary_data):
+                        matrix[row][col] = int(full_binary_data[counter])
+                        counter += 1
+                    else:
+                        matrix[row][col] = int(left_over_data[left_over_counter % 16])
+                        left_over_counter += 1
+                if check_matrix[row][col-1] != 1:
+                    if counter < len(full_binary_data):
+                        matrix[row][col-1] = int(full_binary_data[counter])
+                        counter += 1   
+                    else:
+                        matrix[row][col-1] = int(left_over_data[left_over_counter % 16]) 
+                        left_over_counter += 1
                 row += 1
             row -= 1
-    print(binary_data)
-    print(matrix)
+        
+    # Format Strip (Error Correction)
+    # Convert binary strings to integers for polynomial operations
+    def compute_bch(data, generator):
+        data = int(data, 2)
+        generator = int(generator, 2)
+
+        data <<= 10
+
+        for i in range(len(bin(data)) - len(bin(generator)), -1, -1):
+            if data & (1 << (i + len(bin(generator)) - 3)):
+                data ^= generator << i
+
+        return f'{data:010b}'
+
+    # Example Input
+    level = '01'  # Error Correction Level L
+    mask = '000'  # Mask Pattern 0
+    full_error = mask + level  # First 5 bits of the format string
+    generator = '10100110111'  # BCH Generator Polynomial
+
+    # Compute BCH Remainder
+    remainder = compute_bch(full_error, generator)
+
+    # Combine to get the full 15-bit format string
+    format_string = full_error + remainder
+
+    # Top-Left Horizontal Format Strip
+    for i in range(7):
+        if i < 6:
+            matrix[8][i] = format_string[i]
+        else:
+            matrix[8][i+1] = format_string[i]
+        matrix[grid_size-i-1][8] = format_string[i]
+
+    
+    for i in range(8):
+        if i < 6:
+            matrix[i][8] = format_string[i+7]
+        else:
+            matrix[i+1][8] = format_string[i+7]
+        matrix[8][grid_size-i-1] = format_string[i+7]
+
 
 data = "www.twitch.com"
 create_qr_code(data)
