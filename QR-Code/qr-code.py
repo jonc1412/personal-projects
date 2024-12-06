@@ -6,7 +6,7 @@ def create_qr_code(data):
     # Size of the QR-Code 
     grid_size = 21
     matrix = np.zeros((grid_size, grid_size), dtype=int)
-    filled_matrix = np.zeros((grid_size, grid_size), dtype=int)
+    check_matrix = np.zeros((grid_size, grid_size), dtype=int)
 
     # Binary representation of data
     binary_data = ''
@@ -47,13 +47,21 @@ def create_qr_code(data):
             if grid_size-5 <= i <= grid_size-3 and 2 <= j <= 4:
                 matrix[i][j] = 1
 
+    for i in range(8):
+        for j in range(8):
+            check_matrix[i][j] = 1
+            check_matrix[grid_size-i-1][j] = 1
+            check_matrix[i][grid_size-j-1] = 1
+
     # Timing Pattern: Helps align the QR code grid
     # Alternating black and white cells, starting with black
     # Horizontal Pattern: Row = 6 and Columns = 8 to (grid_size-9)
     # Vertical Pattern: Column = 6 and Rows = 8 to (grid_size-9)
     for i in range(8, grid_size-8, 2):
-        matrix[5][i] = 1
-        matrix[i][5] = 1
+        matrix[6][i] = 1
+        matrix[i][6] = 1
+        check_matrix[6][i] = 1
+        check_matrix[i][6] = 1
 
     # Alignment Pattern: (only necessary with version 2 and above)
 
@@ -66,17 +74,21 @@ def create_qr_code(data):
             if i == 8 or j == 8:
                 if matrix[i][j] != 1:
                     matrix[i][j] = 2
+                    check_matrix[i][j] = 1
 
     # Top-Right Format Strip
     for i in range(8):
         matrix[8][grid_size-i-1] = 2
+        check_matrix[8][grid_size-i-1] = 1
 
     # Bottom-Left Format Strip
     for i in range(7):
         matrix[grid_size-i-1][8] = 2
+        check_matrix[grid_size-i-1][8] = 1
     
     # 1 special pixel (no specific reason) is 1 in the Format Strip
     matrix[grid_size-8][8] = 1
+    check_matrix[grid_size-8][8] = 1
 
     # Start to encode the data (Zig-zag pattern) starting bottom right
     # Type of data
@@ -85,6 +97,7 @@ def create_qr_code(data):
     for i in range(2):
         for j in range(2):
             matrix[grid_size-i-1][grid_size-j-1] = data_type[index]
+            check_matrix[grid_size-i-1][grid_size-j-1] = 1
             index += 1
 
     # Number of characters in the message
@@ -92,6 +105,7 @@ def create_qr_code(data):
     for i in range(2, 6):
         for j in range(2):
             matrix[grid_size-i-1][grid_size-j-1] = char_length[index]
+            check_matrix[grid_size-i-1][grid_size-j-1] = 1
             index += 1
 
     # Arranging bytes on the grid
@@ -103,24 +117,26 @@ def create_qr_code(data):
     for col in range(cols - 1, -1, -2):
         if row == grid_size - 1:
             while row >= 0:
-                if counter < len(binary_data):
-                    m[row][col] = binary_data[counter]
+                if counter < len(binary_data) and check_matrix[row][col] != 1:
+                    matrix[row][col] = binary_data[counter]
                     counter += 1
-                if counter < len(binary_data):
-                    m[row][col-1] = binary_data[counter]
+                if counter < len(binary_data) and check_matrix[row][col] != 1:
+                    matrix[row][col-1] = binary_data[counter]
                     counter += 1    
                 row -= 1
             row += 1
         else:
             while row < grid_size:
-                if counter < len(binary_data):
-                    m[row][col] = binary_data[counter]
+                if counter < len(binary_data) and check_matrix[row][col] != 1:
+                    matrix[row][col] = binary_data[counter]
                     counter += 1
-                if counter < len(binary_data):
-                    m[row][col-1] = binary_data[counter]
+                if counter < len(binary_data) and check_matrix[row][col] != 1:
+                    matrix[row][col-1] = binary_data[counter]
                     counter += 1    
                 row += 1
             row -= 1
+    print(binary_data)
+    print(matrix)
 
 data = "www.twitch.com"
 create_qr_code(data)
