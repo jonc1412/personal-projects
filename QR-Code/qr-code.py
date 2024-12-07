@@ -101,7 +101,8 @@ def create_qr_code(data):
         total_data += '0'
 
     rs = reedsolo.RSCodec(7)
-    data_bytes = int(total_data, 2).to_bytes(len(total_data))
+    byte_length = (len(total_data) + 7) // 8
+    data_bytes = int(total_data, 2).to_bytes(byte_length, 'big')    
     error_correction_bytes = rs.encode(data_bytes)[-7:]
     error_correction_binary = ''.join(f'{byte:08b}' for byte in error_correction_bytes)
     full_binary_data = total_data + error_correction_binary
@@ -114,8 +115,9 @@ def create_qr_code(data):
     counter = 0
     leftover_counter = 0
     row = rows - 1
+    col = cols - 1
     
-    for col in range(cols - 1, -1, -2):
+    while col > -1:
         if row == grid_size - 1:
             while row >= 0:
                 if counter < len(full_binary_data) and check_matrix[row][col] != 1:
@@ -123,16 +125,14 @@ def create_qr_code(data):
                     counter += 1
                 elif counter >= len(full_binary_data) and check_matrix[row][col] != 1:
                     matrix[row][col] = int(leftover_data[leftover_counter%16])
-                    check_matrix[row][col] = 1
                     leftover_counter += 1
-                if col - 1 >= 0:
-                    if counter < len(full_binary_data) and check_matrix[row][col-1] != 1:
-                        matrix[row][col-1] = int(full_binary_data[counter])
-                        check_matrix[row][col-1] = 1
-                        counter += 1
-                    elif counter >= len(full_binary_data) and check_matrix[row][col-1] != 1:
-                        matrix[row][col-1] = int(leftover_data[leftover_counter%16])
-                        leftover_counter += 1
+
+                if counter < len(full_binary_data) and check_matrix[row][col-1] != 1:
+                    matrix[row][col-1] = int(full_binary_data[counter])
+                    counter += 1
+                elif counter >= len(full_binary_data) and check_matrix[row][col-1] != 1:
+                    matrix[row][col-1] = int(leftover_data[leftover_counter%16])
+                    leftover_counter += 1
                 row -= 1
             row += 1
         else:
@@ -142,7 +142,6 @@ def create_qr_code(data):
                     counter += 1
                 elif counter >= len(full_binary_data) and check_matrix[row][col] != 1:
                     matrix[row][col] = int(leftover_data[leftover_counter%16])
-                    check_matrix[row][col] = 1
                     leftover_counter += 1
                     
                 if counter < len(full_binary_data) and check_matrix[row][col-1] != 1:
@@ -150,50 +149,47 @@ def create_qr_code(data):
                     counter += 1
                 elif counter >= len(full_binary_data) and check_matrix[row][col-1] != 1:
                     matrix[row][col-1] = int(leftover_data[leftover_counter%16])
-                    check_matrix[row][col-1] = 1
                     leftover_counter += 1
                 row += 1
             row -= 1
+
+        if col == 8:
+            col -= 3
+        else:
+            col -= 2
+        
+    print(matrix)
     
     # Format Strip (Error Correction)
     # Convert binary strings to integers for polynomial operations
-    def compute_bch(data, generator):
-        data = int(data, 2)
-        generator = int(generator, 2)
-
-        data <<= 10
-
-        for i in range(len(bin(data)) - len(bin(generator)), -1, -1):
-            if data & (1 << (i + len(bin(generator)) - 3)):
-                data ^= generator << i
-
-        return f'{data:010b}'
-
-    # Example Input
     level = '01'  # Error Correction Level L
     mask = '000'  # Mask Pattern 0
-    full_error = mask + level  # First 5 bits of the format string
-    generator = '10100110111'  # BCH Generator Polynomial
-
-    # Compute BCH Remainder
-    remainder = compute_bch(full_error, generator)
-
-    # Combine to get the full 15-bit format string
-    format_string = full_error + remainder
+    full_error = int(level + mask, 2)
+    generator = 0b10100110111
+    data = full_error << 10
+    for shift in range(14, 9, -1):
+        if (data & (1 << shift)) != 0:
+            data ^= (generator << (shift - 10))
+    remainder = data & 0x3FF
+    format_15_bits_str = '{:05b}{:010b}'.format(full_error, remainder)
+    mask_str = '101010000010010'
+    mask_int = int(mask_str, 2)
+    final_format_int = int(format_15_bits_str, 2) ^ mask_int
+    final_format_string = f"{final_format_int:015b}"
 
     for i in range(7):
         if i < 6:
-            matrix[8][i] = format_string[i]
+            matrix[8][i] = final_format_string[i]
         else:
-            matrix[8][i+1] = format_string[i]
-        matrix[grid_size-i-1][8] = format_string[i]
+            matrix[8][i+1] = final_format_string[i]
+        matrix[grid_size-i-1][8] = final_format_string[i]
     
     for i in range(8):
         if i < 6:
-            matrix[i][8] = format_string[i+7]
+            matrix[i][8] = final_format_string[i+7]
         else:
-            matrix[i+1][8] = format_string[i+7]
-        matrix[8][grid_size-i-1] = format_string[i+7]
+            matrix[i+1][8] = final_format_string[i+7]
+        matrix[8][grid_size-i-1] = final_format_string[i+7]
 
     for row in range(rows):
         for col in range(cols):
@@ -201,11 +197,10 @@ def create_qr_code(data):
                 if (row + col) % 2 == 0:
                     matrix[row][col] ^= 1
     
-    print(matrix)
     
     plt.imshow(matrix, cmap="binary", interpolation="nearest")
     plt.axis("off")
     plt.show()
 
-data = "www.twitch.com"
+data = "www.twitch.tv"
 create_qr_code(data)
